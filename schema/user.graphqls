@@ -1,0 +1,40 @@
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  isAdmin: Boolean!
+}
+
+type UsersResponse {
+  edges: [User!]!
+  totalCount: Int!
+}
+
+type CurrentUser {
+  id: ID!
+  name: String!
+  email: String!
+  isAdmin: Boolean!
+}
+
+input UsersFilter {
+  name: String
+  email: String
+  isAdmin: Boolean
+}
+
+input SignInInput {
+  email: String!
+  password: String!
+}
+
+input SignUpInput {
+  name: String!
+  email: String!
+  password: String!
+}
+
+type Status {
+  success: Boolean!
+  message: String!
+}

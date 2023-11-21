@@ -1,0 +1,37 @@
+type Order {
+  id: ID!
+  name: String
+  email: String
+  isPaid: Boolean!
+  country: String!
+  address: String!
+  user: User
+  orderItems: [OrderItem]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type OrdersResponse {
+  edges: [Order!]!
+  totalCount: Int!
+}
+
+type OrderItem {
+  id: ID!
+  quantity: Int!
+  product: Product!
+}
+
+input OrdersFilter {
+  name: String
+  email: String
+  isPaid: Boolean
+  country: String
+  address: String
+  userId: ID
+}
+
+input Pagination {
+  limit: Int
+  offset: Int
+}

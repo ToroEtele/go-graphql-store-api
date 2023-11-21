@@ -1,0 +1,25 @@
+type Product {
+  id: ID!
+  name: String!
+  price: Float!
+  image: String!
+  description: String!
+  stock: Int!
+}
+
+input CreateProductInput {
+  name: String!
+  price: Float!
+  description: String!
+  image: String!
+  stock: Int!
+}
+
+input UpdateProductInput {
+  id: ID!
+  name: String
+  price: Float
+  description: String
+  image: String
+  stock: Int
+}

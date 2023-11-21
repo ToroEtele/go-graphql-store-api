@@ -1,0 +1,11 @@
+type Query {
+  products: [Product!]
+  product(id: ID!): Product
+
+  orders(filter: OrdersFilter, pagination: Pagination): OrdersResponse
+  order(id: ID!): Order
+
+  me: CurrentUser!
+  user(id: String!): User
+  users(filter: UsersFilter, pagination: Pagination): UsersResponse
+}

@@ -1,0 +1,13 @@
+type Mutation {
+  createProduct(input: CreateProductInput!): Product
+  updateProduct(input: UpdateProductInput!): Product
+  deleteProduct(id: ID!): Boolean!
+
+  refreshToken: String
+  signOut: Status!
+  signIn(input: SignInInput!): String
+  signInGoogle(token: String!): String
+  signUp(input: SignUpInput!): String
+  forgotPassword(email: String!): Status!
+  resetPassword(token: String!, password: String!): Status!
+}
