@@ -6,11 +6,13 @@ package resolvers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	model1 "github.com/ToroEtele/go-graphql-api/cmd/app/domain"
 	model "github.com/ToroEtele/go-graphql-api/cmd/app/domain/dao"
 	"github.com/ToroEtele/go-graphql-api/graph"
+	"github.com/ToroEtele/go-graphql-api/middleware"
 	"github.com/ToroEtele/go-graphql-api/tools"
 )
 
@@ -28,7 +30,14 @@ func (r *queryResolver) Products(ctx context.Context) ([]*model.Product, error) 
 
 // Product is the resolver for the product field.
 func (r *queryResolver) Product(ctx context.Context, id string) (*model.Product, error) {
-	panic(fmt.Errorf("not implemented: Product - product"))
+	dbProduct, err := r.DB.GetProductById(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	product := tools.DatabaseProductToProduct(dbProduct)
+
+	return product, nil
 }
 
 // Orders is the resolver for the orders field.
@@ -43,7 +52,13 @@ func (r *queryResolver) Order(ctx context.Context, id string) (*model.Order, err
 
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model1.CurrentUser, error) {
-	panic(fmt.Errorf("not implemented: Me - me"))
+	currentUser := ctx.Value(middleware.ContextKey("user"))
+
+	if val, ok := currentUser.(*model1.CurrentUser); ok {
+		return val, nil
+	} else {
+		return nil, errors.New("unauthorized")
+	}
 }
 
 // User is the resolver for the user field.

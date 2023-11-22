@@ -27,7 +27,7 @@ func main() {
 		port = defaultPort
 	}
 
-	db, err := config.InitDb()
+	cfg, err := config.InitDb()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -36,7 +36,8 @@ func main() {
 	router.Use(middleware.AuthMiddleware)
 
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &resolvers.Resolver{
-		DB: db,
+		DB:   cfg.Db,
+		Conn: cfg.Conn,
 	}}))
 
 	router.Handle("/", playground.Handler("GraphQL playground", "/graphql"))

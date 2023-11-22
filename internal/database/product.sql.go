@@ -9,6 +9,39 @@ import (
 	"context"
 )
 
+const createProduct = `-- name: CreateProduct :exec
+INSERT INTO product (id, name, price, description, image, stock, updatedAt) 
+VALUES (UUID(), ?, ?, ?, ?, ?, NOW())
+`
+
+type CreateProductParams struct {
+	Name        string
+	Price       float64
+	Description string
+	Image       string
+	Stock       int32
+}
+
+func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) error {
+	_, err := q.db.ExecContext(ctx, createProduct,
+		arg.Name,
+		arg.Price,
+		arg.Description,
+		arg.Image,
+		arg.Stock,
+	)
+	return err
+}
+
+const deleteProduct = `-- name: DeleteProduct :exec
+DELETE FROM product WHERE id = ?
+`
+
+func (q *Queries) DeleteProduct(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteProduct, id)
+	return err
+}
+
 const getAllProducts = `-- name: GetAllProducts :many
 SELECT id, name, description, image, price, createdat, updatedat, stock FROM product
 `
@@ -43,4 +76,44 @@ func (q *Queries) GetAllProducts(ctx context.Context) ([]Product, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getProductById = `-- name: GetProductById :one
+SELECT id, name, description, image, price, createdat, updatedat, stock FROM product WHERE id = ?
+`
+
+func (q *Queries) GetProductById(ctx context.Context, id string) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProductById, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Image,
+		&i.Price,
+		&i.Createdat,
+		&i.Updatedat,
+		&i.Stock,
+	)
+	return i, err
+}
+
+const getProductByName = `-- name: GetProductByName :one
+SELECT id, name, description, image, price, createdat, updatedat, stock FROM product WHERE name = ?
+`
+
+func (q *Queries) GetProductByName(ctx context.Context, name string) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProductByName, name)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Image,
+		&i.Price,
+		&i.Createdat,
+		&i.Updatedat,
+		&i.Stock,
+	)
+	return i, err
 }

@@ -26,7 +26,23 @@ import (
 
 // CreateProduct is the resolver for the createProduct field.
 func (r *mutationResolver) CreateProduct(ctx context.Context, input model.CreateProductInput) (*model1.Product, error) {
-	panic(fmt.Errorf("not implemented: CreateProduct - createProduct"))
+
+	err := r.DB.CreateProduct(ctx, database.CreateProductParams{
+		Name:        input.Name,
+		Price:       input.Price,
+		Description: input.Description,
+		Image:       input.Image,
+		Stock:       int32(input.Stock),
+	})
+	if err != nil {
+		return nil, errors.New("internal server error")
+	}
+	newProduct, err := r.DB.GetProductByName(ctx, input.Name)
+	if err != nil {
+		return nil, errors.New("internal server error")
+	}
+
+	return tools.DatabaseProductToProduct(newProduct), nil
 }
 
 // UpdateProduct is the resolver for the updateProduct field.
@@ -36,7 +52,11 @@ func (r *mutationResolver) UpdateProduct(ctx context.Context, input model.Update
 
 // DeleteProduct is the resolver for the deleteProduct field.
 func (r *mutationResolver) DeleteProduct(ctx context.Context, id string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteProduct - deleteProduct"))
+	err := r.DB.DeleteProduct(ctx, id)
+	if err != nil {
+		return false, errors.New("internal server error")
+	}
+	return true, nil
 }
 
 // RefreshToken is the resolver for the refreshToken field.
@@ -137,7 +157,7 @@ func (r *mutationResolver) SignIn(ctx context.Context, input model.SignInInput) 
 
 // SignInGoogle is the resolver for the signInGoogle field.
 func (r *mutationResolver) SignInGoogle(ctx context.Context, token string) (*string, error) {
-	googleAPI := fmt.Sprint("https://oauth2.googleapis.com/tokeninfo?id_token=%s", token)
+	googleAPI := fmt.Sprintf("https://oauth2.googleapis.com/tokeninfo?id_token=%s", token)
 	response, err := http.Get(googleAPI)
 	if err != nil || response.StatusCode != http.StatusOK {
 		return nil, errors.New("internal server error")
