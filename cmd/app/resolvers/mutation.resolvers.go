@@ -6,11 +6,22 @@ package resolvers
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 
 	model "github.com/ToroEtele/go-graphql-api/cmd/app/domain"
 	model1 "github.com/ToroEtele/go-graphql-api/cmd/app/domain/dao"
 	"github.com/ToroEtele/go-graphql-api/graph"
+	"github.com/ToroEtele/go-graphql-api/internal/database"
+	"github.com/ToroEtele/go-graphql-api/middleware"
+	"github.com/ToroEtele/go-graphql-api/service"
+	"github.com/ToroEtele/go-graphql-api/tools"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // CreateProduct is the resolver for the createProduct field.
@@ -30,27 +41,252 @@ func (r *mutationResolver) DeleteProduct(ctx context.Context, id string) (bool, 
 
 // RefreshToken is the resolver for the refreshToken field.
 func (r *mutationResolver) RefreshToken(ctx context.Context) (*string, error) {
-	panic(fmt.Errorf("not implemented: RefreshToken - refreshToken"))
+	refreshTokenPointer := ctx.Value(middleware.ContextKey("refreshToken")).(*string)
+	if *refreshTokenPointer == "" {
+		return nil, errors.New("unauthorized")
+	}
+
+	refreshClaims := service.ParseRefreshToken(*refreshTokenPointer)
+	if refreshClaims == nil || refreshClaims.Id == "" {
+		return nil, errors.New("unauthorized")
+	}
+
+	user, err := r.DB.GetUserById(ctx, refreshClaims.Id)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("invalid refresh token")
+	} else if err != nil {
+		return nil, errors.New("internal server error")
+	}
+
+	signedRefreshToken, err := service.NewRefreshToken(*refreshClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	*refreshTokenPointer = signedRefreshToken
+
+	userClaims := service.UserClaims{
+		Id:      user.ID,
+		Name:    user.Name,
+		Email:   user.Email,
+		IsAdmin: user.Isadmin,
+	}
+
+	signedAccessToken, err := service.NewAccessToken(userClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	return &signedAccessToken, nil
 }
 
 // SignOut is the resolver for the signOut field.
 func (r *mutationResolver) SignOut(ctx context.Context) (*model.Status, error) {
-	panic(fmt.Errorf("not implemented: SignOut - signOut"))
+	refreshTokenPointer := ctx.Value(middleware.ContextKey("refreshToken")).(*string)
+
+	*refreshTokenPointer = ""
+
+	return &model.Status{
+		Success: true,
+		Message: "Signed out successfully",
+	}, nil
 }
 
 // SignIn is the resolver for the signIn field.
 func (r *mutationResolver) SignIn(ctx context.Context, input model.SignInInput) (*string, error) {
-	panic(fmt.Errorf("not implemented: SignIn - signIn"))
+	var err error
+	user, err := r.DB.GetUserByEmail(ctx, input.Email)
+	if err == sql.ErrNoRows {
+		return nil, errors.New("email or password is incorrect")
+	} else if err != nil {
+		return nil, errors.New("internal server error")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(input.Password))
+	if err != nil {
+		return nil, errors.New("email or password is incorrect")
+	}
+
+	userClaims := service.UserClaims{
+		Id:      user.ID,
+		Name:    user.Name,
+		Email:   user.Email,
+		IsAdmin: user.Isadmin,
+	}
+
+	refreshClaims := service.RefreshClaims{
+		Id: user.ID,
+	}
+
+	signedRefreshToken, err := service.NewRefreshToken(refreshClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	refreshTokenPointer := ctx.Value(middleware.ContextKey("refreshToken")).(*string)
+
+	*refreshTokenPointer = signedRefreshToken
+
+	signedAccessToken, err := service.NewAccessToken(userClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	return &signedAccessToken, nil
 }
 
 // SignInGoogle is the resolver for the signInGoogle field.
 func (r *mutationResolver) SignInGoogle(ctx context.Context, token string) (*string, error) {
-	panic(fmt.Errorf("not implemented: SignInGoogle - signInGoogle"))
+	googleAPI := fmt.Sprint("https://oauth2.googleapis.com/tokeninfo?id_token=%s", token)
+	response, err := http.Get(googleAPI)
+	if err != nil || response.StatusCode != http.StatusOK {
+		return nil, errors.New("internal server error")
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, errors.New("error when communicating with google api")
+	}
+
+	var formattedBody tools.TokenInfo
+
+	err = json.Unmarshal(body, &formattedBody)
+	if err != nil {
+		return nil, errors.New("error when communicating with google api (invalid JSON)")
+	}
+
+	user, err := r.DB.GetUserByEmail(ctx, formattedBody.Email)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, errors.New("internal server error")
+	}
+
+	var userClaims service.UserClaims
+	var refreshClaims service.RefreshClaims
+
+	if err == sql.ErrNoRows {
+		signUpInput := database.SignUpParams{
+			Email: formattedBody.Email,
+			Name:  formattedBody.Name,
+			Password: sql.NullString{
+				String: "",
+				Valid:  false,
+			},
+		}
+
+		err = r.DB.SignUp(ctx, signUpInput)
+		if err != nil {
+			return nil, errors.New("internal server error")
+		}
+
+		newUser, err := r.DB.GetUserByEmail(ctx, formattedBody.Email)
+		if err != nil {
+			return nil, errors.New("internal server error")
+		}
+
+		userClaims = service.UserClaims{
+			Id:      newUser.ID,
+			Name:    newUser.Name,
+			Email:   newUser.Email,
+			IsAdmin: false,
+		}
+
+		refreshClaims = service.RefreshClaims{
+			Id: newUser.ID,
+		}
+
+	} else {
+		userClaims = service.UserClaims{
+			Id:      user.ID,
+			Name:    user.Name,
+			Email:   user.Email,
+			IsAdmin: false,
+		}
+
+		refreshClaims = service.RefreshClaims{
+			Id: user.ID,
+		}
+	}
+
+	signedRefreshToken, err := service.NewRefreshToken(refreshClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	refreshTokenPointer := ctx.Value(middleware.ContextKey("refreshToken")).(*string)
+
+	*refreshTokenPointer = signedRefreshToken
+
+	signedAccessToken, err := service.NewAccessToken(userClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	return &signedAccessToken, nil
+
 }
 
 // SignUp is the resolver for the signUp field.
 func (r *mutationResolver) SignUp(ctx context.Context, input model.SignUpInput) (*string, error) {
-	panic(fmt.Errorf("not implemented: SignUp - signUp"))
+	var err error
+	_, err = r.DB.GetUserByEmail(ctx, input.Email)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, errors.New("internal server error")
+	}
+	if err == nil {
+		return nil, errors.New("email already exists")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.New("internal server error")
+	}
+
+	signUpInput := database.SignUpParams{
+		Email: input.Email,
+		Name:  input.Name,
+		Password: sql.NullString{
+			String: string(hashedPassword),
+			Valid:  true,
+		},
+	}
+
+	err = r.DB.SignUp(ctx, signUpInput)
+	if err != nil {
+		return nil, errors.New("internal server error")
+	}
+
+	newUser, err := r.DB.GetUserByEmail(ctx, input.Email)
+	if err != nil {
+		return nil, errors.New("internal server error")
+	}
+
+	userClaims := service.UserClaims{
+		Id:      newUser.ID,
+		Name:    input.Name,
+		Email:   input.Email,
+		IsAdmin: false,
+	}
+
+	refreshClaims := service.RefreshClaims{
+		Id: newUser.ID,
+	}
+
+	signedRefreshToken, err := service.NewRefreshToken(refreshClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	refreshTokenPointer := ctx.Value(middleware.ContextKey("refreshToken")).(*string)
+
+	*refreshTokenPointer = signedRefreshToken
+
+	signedAccessToken, err := service.NewAccessToken(userClaims)
+	if err != nil {
+		log.Fatal("internal server error")
+	}
+
+	return &signedAccessToken, nil
 }
 
 // ForgotPassword is the resolver for the forgotPassword field.

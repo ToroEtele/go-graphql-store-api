@@ -7,14 +7,15 @@ package database
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password, createdat, updatedat, isadmin FROM user WHERE id = $1
+SELECT id, email, name, password, createdat, updatedat, isadmin FROM user WHERE email = ?
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmail)
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -29,11 +30,11 @@ func (q *Queries) GetUserByEmail(ctx context.Context) (User, error) {
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, email, name, password, createdat, updatedat, isadmin FROM user WHERE id = $1
+SELECT id, email, name, password, createdat, updatedat, isadmin FROM user WHERE id = ?
 `
 
-func (q *Queries) GetUserById(ctx context.Context) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserById)
+func (q *Queries) GetUserById(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserById, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -45,4 +46,20 @@ func (q *Queries) GetUserById(ctx context.Context) (User, error) {
 		&i.Isadmin,
 	)
 	return i, err
+}
+
+const signUp = `-- name: SignUp :exec
+INSERT INTO user (id, email, name, password, isAdmin, updatedAt) 
+VALUES (UUID(), ?, ?, ?, false, NOW())
+`
+
+type SignUpParams struct {
+	Email    string
+	Name     string
+	Password sql.NullString
+}
+
+func (q *Queries) SignUp(ctx context.Context, arg SignUpParams) error {
+	_, err := q.db.ExecContext(ctx, signUp, arg.Email, arg.Name, arg.Password)
+	return err
 }

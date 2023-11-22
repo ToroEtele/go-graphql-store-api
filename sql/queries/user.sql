@@ -1,10 +1,9 @@
 -- name: GetUserById :one
-SELECT * FROM user WHERE id = $1;
+SELECT * FROM user WHERE id = ?;
 
 -- name: GetUserByEmail :one
-SELECT * FROM user WHERE id = $1;
+SELECT * FROM user WHERE email = ?;
 
--- name: SignUp :one
-INSERT INTO user (id, email, name, password, isAdmin) 
-VALUES ($1, $2, $3, $4, false) 
-RETURNING *;
+-- name: SignUp :exec
+INSERT INTO user (id, email, name, password, isAdmin, updatedAt) 
+VALUES (UUID(), ?, ?, ?, false, NOW());
