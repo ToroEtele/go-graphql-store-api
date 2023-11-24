@@ -1,10 +1,12 @@
+directive @stockModifier on FIELD_DEFINITION
+
 type Product {
   id: ID!
   name: String!
   price: Float!
   image: String!
   description: String!
-  stock: Int!
+  stock: Int! @stockModifier
 }
 
 input CreateProductInput {

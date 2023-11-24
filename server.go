@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ToroEtele/go-graphql-api/cmd/app/directives"
 	"github.com/ToroEtele/go-graphql-api/cmd/app/resolvers"
 	"github.com/ToroEtele/go-graphql-api/config"
 	"github.com/ToroEtele/go-graphql-api/graph"
@@ -35,10 +36,14 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.AuthMiddleware)
 
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &resolvers.Resolver{
+	ctx := graph.Config{Resolvers: &resolvers.Resolver{
 		DB:   cfg.Db,
 		Conn: cfg.Conn,
-	}}))
+	}}
+
+	ctx.Directives.StockModifier = directives.StockModifier
+
+	srv := handler.NewDefaultServer(graph.NewExecutableSchema(ctx))
 
 	router.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
 	router.Handle("/graphql", srv)

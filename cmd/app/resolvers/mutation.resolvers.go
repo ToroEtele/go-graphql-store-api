@@ -26,7 +26,6 @@ import (
 
 // CreateProduct is the resolver for the createProduct field.
 func (r *mutationResolver) CreateProduct(ctx context.Context, input model.CreateProductInput) (*model1.Product, error) {
-
 	err := r.DB.CreateProduct(ctx, database.CreateProductParams{
 		Name:        input.Name,
 		Price:       input.Price,
@@ -243,7 +242,6 @@ func (r *mutationResolver) SignInGoogle(ctx context.Context, token string) (*str
 	}
 
 	return &signedAccessToken, nil
-
 }
 
 // SignUp is the resolver for the signUp field.

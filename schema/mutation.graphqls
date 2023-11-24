@@ -1,7 +1,9 @@
+directive @authorized on FIELD_DEFINITION
+
 type Mutation {
-  createProduct(input: CreateProductInput!): Product
-  updateProduct(input: UpdateProductInput!): Product
-  deleteProduct(id: ID!): Boolean!
+  createProduct(input: CreateProductInput!): Product @authorized
+  updateProduct(input: UpdateProductInput!): Product @authorized
+  deleteProduct(id: ID!): Boolean! @authorized
 
   refreshToken: String
   signOut: Status!

@@ -46,6 +46,7 @@ type ResolverRoot interface {
 }
 
 type DirectiveRoot struct {
+	StockModifier func(ctx context.Context, obj interface{}, next graphql.Resolver) (res interface{}, err error)
 }
 
 type ComplexityRoot struct {
@@ -756,13 +757,15 @@ input Pagination {
   offset: Int
 }
 `, BuiltIn: false},
-	{Name: "../schema/product.graphqls", Input: `type Product {
+	{Name: "../schema/product.graphqls", Input: `directive @stockModifier on FIELD_DEFINITION
+
+type Product {
   id: ID!
   name: String!
   price: Float!
   image: String!
   description: String!
-  stock: Int!
+  stock: Int! @stockModifier
 }
 
 input CreateProductInput {
@@ -2787,8 +2790,28 @@ func (ec *executionContext) _Product_stock(ctx context.Context, field graphql.Co
 		}
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Stock, nil
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return obj.Stock, nil
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			if ec.directives.StockModifier == nil {
+				return nil, errors.New("directive stockModifier is not implemented")
+			}
+			return ec.directives.StockModifier(ctx, obj, directive0)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, graphql.ErrorOnPath(ctx, err)
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(int); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be int`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
