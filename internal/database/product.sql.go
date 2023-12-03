@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createProduct = `-- name: CreateProduct :exec
@@ -116,4 +117,36 @@ func (q *Queries) GetProductByName(ctx context.Context, name string) (Product, e
 		&i.Stock,
 	)
 	return i, err
+}
+
+const updateProduct = `-- name: UpdateProduct :exec
+UPDATE product 
+SET name = COALESCE(?, name),
+    price = COALESCE(?, price),
+    description = COALESCE(?, description),
+    image = COALESCE(?, image),
+    stock = COALESCE(?, stock),
+    updatedAt = NOW()
+WHERE id = ?
+`
+
+type UpdateProductParams struct {
+	Name        sql.NullString
+	Price       sql.NullFloat64
+	Description sql.NullString
+	Image       sql.NullString
+	Stock       sql.NullInt32
+	ID          string
+}
+
+func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) error {
+	_, err := q.db.ExecContext(ctx, updateProduct,
+		arg.Name,
+		arg.Price,
+		arg.Description,
+		arg.Image,
+		arg.Stock,
+		arg.ID,
+	)
+	return err
 }
